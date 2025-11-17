@@ -1,5 +1,12 @@
 """
-Kraehnert chemical kinetics for ammonia oxidation over Pt, which is a DAE system.
+Kraehnert DAE Model for ammonia oxidation over Pt.
+
+Implements a 6-variable index-1 DAE system from:
+Kraehnert, R., & Baerns, M. (2008). "Kinetics of ammonia oxidation over Pt foil
+studied in a micro-structured quartz-reactor." 
+Chemical Engineering Journal, 137(2008), 361-375
+
+Kraehnert chemical kinetics for ammonia oxidation over Pt, which is a differential algebraic system of equations
 This is given by a set of elementary steps and one non elementary step (R5 is not elementary)
 This mechanism has the particularity of having two independent active sites a and b, each requiring a site balance.
 Requirements:
@@ -9,9 +16,9 @@ Requirements:
 
 The variables are:
     -----FIXED parameters-----
-    xNH3 (partial pressure of NH3)
-    xO2 (partial pressure of O2)
-    xNO (partial pressure of NO)
+    pNH3 (partial pressure of NH3)
+    pO2 (partial pressure of O2)
+    pNO (partial pressure of NO)
     P: total pressure in kPa
     T: temperature in K
     --------DAE IDA Variables--------
