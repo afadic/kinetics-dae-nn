@@ -75,16 +75,8 @@ def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
     E[9] = 155.2 
 
     # ki in mol m^-2 s^-1 kPa^-1 for reactions involving partial pressures
-    k1 = 6.38E-1*np.exp(-(E[0]/R)*(1/T - 1/T_ref))
-    k2 = 2.17E0*np.exp(-(E[1]/R)*(1/T - 1/T_ref))
-    k3 = 2.94E-1*np.exp(-(E[2]/R)*(1/T - 1/T_ref))
-    k4 = 1.09E-10*np.exp(-(E[3]/R)*(1/T - 1/T_ref))
-    k5 = 5.91E2*np.exp(-(E[4]/R)*(1/T - 1/T_ref))
-    k6 = 1.24E0*np.exp(-(E[5]/R)*(1/T - 1/T_ref))
-    k7 = 2.63E-1*np.exp(-(E[6]/R)*(1/T - 1/T_ref))
-    k8 = 6.42E1*np.exp(-(E[7]/R)*(1/T - 1/T_ref))
-    k9 = 9.34E0*np.exp(-(E[8]/R)*(1/T - 1/T_ref))
-    k10 = 5.2E0*np.exp(-(E[9]/R)*(1/T - 1/T_ref))
+    ki = rate_constants(data)
+    k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = ki
 
     R1 = k1*pNH3*y[0]
     R2 = k2*y[1]
@@ -103,7 +95,7 @@ def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
     R_O2 = -R3 + R4 
     R_H2O = 1.5*R5
     R_N2O = R10
-    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])
+    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])*data.surface_density
 
 
 def residual_function(t, y, yp, res, userdata) -> None:
@@ -142,6 +134,7 @@ def residual_function(t, y, yp, res, userdata) -> None:
     R[7] = k[7]*y[5]**2
     R[8] = k[8]*y[5]*y[3]
     R[9] = k[9]*y[4]*y[5]
+    R1, R2, R3, R4, R5, R6, R7, R8, R9, R10 = R
 
     """
     Time derivatives of the DAE system variables. IDA expects the residuals in the var res, such that res = yp - f(t,y,yp,...)=0
@@ -160,16 +153,16 @@ def residual_function(t, y, yp, res, userdata) -> None:
     # site balance b
     res[0] = y[0] + y[1] - 1 
     # dtheta_b-NH3
-    res[1] = yp[1] - (R[0] - R[1] - R[4])/surface_density
+    res[1] = yp[1] - (R1 - R2 - R5)
     # site balance a
     res[2] = y[2] + y[3] + y[4] + y[5] - 1 
     # dtheta-aO/dt
-    res[3] = yp[3] - (2*R[2] - 2*R[3] - 1.5*R[4] - R[8])/surface_density
-    # dthetha-aNO
-    res[4] = yp[4] - (-R[5] + R[6] + R[8] - R[9])/surface_density
+    res[3] = yp[3] - (2*R3 - 2*R4 - 1.5*R5 - R9)
+    # dthetha-aNO. Residuals are too large when xNO!=0. Possible bug
+    res[4] = yp[4] - (-R6 + R7 + R9 - R10)
     # dtheta-aN
-    res[5] = yp[5] - (R[4] - 2*R[7] - R[8] - R[9])/surface_density
-    #print(res)
+    res[5] = yp[5] - (R5 - 2*R8 - R9 - R10)
+    print(res)
 
 
 def write_results(soln)->None:
@@ -223,7 +216,10 @@ def rate_constants(user_data: KraehnertParameters) -> np.ndarray:
     k[8] = 9.34E0*np.exp(-(E[8]/R)*(1/T - 1/T_ref))
     k[9] = 5.2E0*np.exp(-(E[9]/R)*(1/T - 1/T_ref))
 
-    return k
+    # for numerical stability, we divide each k by the surface density. This implies that we need to adapt the residual
+    # function removing the surface density, and it also implies that we need to multiply it back at the time to compute the rates.
+
+    return k/user_data.surface_density
 
 def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: float, JJ, userdata) -> int:
     """
@@ -261,26 +257,28 @@ def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: fl
 
     # Differential rows: J[row, j] = - d(f_row)/d(y_j)
     # Row 1 (f1 = (R1 - R2 - R5)/S)
-    JJ_local[1, 0] = - (k1 * pNH3) / S
-    JJ_local[1, 1] = - ( -k2 - k5 * y[3]) / S  # = (k2 + k5*y3)/S
-    JJ_local[1, 3] = - ( -k5 * y[1]) / S      # = k5*y1/S
+    JJ_local[1, 0] = - (k1 * pNH3) 
+    JJ_local[1, 1] = - ( -k2 - k5 * y[3])   # = (k2 + k5*y3)/S
+    JJ_local[1, 3] = - ( -k5 * y[1])       # = k5*y1/S
 
     # Row 3 (f3 = (2R3 - 2R4 -1.5R5 - R9)/S)
-    JJ_local[3, 1] = - ( -1.5 * k5 * y[3]) / S   # = 1.5*k5*y3/S
-    JJ_local[3, 2] = - ( 4.0 * k3 * pO2 * y[2]) / S
-    JJ_local[3, 3] = - ( -4.0 * k4 * y[3] - 1.5 * k5 * y[1] - k9 * y[5]) / S
-    JJ_local[3, 5] = - ( -k9 * y[3]) / S          # = k9*y3/S
+    JJ_local[3, 1] = - ( -1.5 * k5 * y[3])    # = 1.5*k5*y3/S
+    JJ_local[3, 2] = - ( 4.0 * k3 * pO2 * y[2]) 
+    JJ_local[3, 3] = - ( -4.0 * k4 * y[3] - 1.5 * k5 * y[1] - k9 * y[5]) 
+    JJ_local[3, 5] = - ( -k9 * y[3])           # = k9*y3/S
 
     # Row 4 (f4 = (R6 - R7 + R9 - R10)/S)
-    JJ_local[4, 3] = - ( k9 * y[5]) / S * 1.0     # df4/dy3 = k9*y5 / S -> J = -df
-    JJ_local[4, 4] = - ( -k6 + k7 * pNO - k10 * y[5]) / S
-    JJ_local[4, 5] = - ( k9 * y[3] - k10 * y[4]) / S
+    JJ_local[4, 2] = - ( k7 * pNO )   
+    JJ_local[4, 3] = - ( k9 * y[5])     # df4/dy3 = k9*y5 / S -> J = -df
+    JJ_local[4, 4] = - ( -k6 - k10 * y[5])   
+    #JJ_local[4, 4] = - ( -k6 + k7 * pNO - k10 * y[5]) 
+    JJ_local[4, 5] = - ( k9 * y[3] - k10 * y[4])  
 
     # Row 5 (f5 = (R5 - 2R8 - R9 - R10)/S)
-    JJ_local[5, 1] = - ( k5 * y[3]) / S
-    JJ_local[5, 3] = - ( k5 * y[1] - k9 * y[5]) / S
-    JJ_local[5, 4] = - ( -k10 * y[5]) / S         # = k10*y5/S
-    JJ_local[5, 5] = - ( -4.0 * k8 * y[5] - k9 * y[3] - k10 * y[4]) / S
+    JJ_local[5, 1] = - ( k5 * y[3]) 
+    JJ_local[5, 3] = - ( k5 * y[1] - k9 * y[5]) 
+    JJ_local[5, 4] = - ( -k10 * y[5])          # = k10*y5/S
+    JJ_local[5, 5] = - ( -4.0 * k8 * y[5] - k9 * y[3] - k10 * y[4]) 
 
     # Add cj * d(res)/d(yp): for rows 1,3,4,5 d(res)/d(yp) has +1 on their corresponding yp variable.
     JJ_local[1, 1] += cj
@@ -290,31 +288,64 @@ def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: fl
 
     JJ[:, :] = JJ_local
 
-    return 0
-
 
 def plot_results(soln)->None:
+    """
+    y0: theta_b (free site b)
+    y1: theta_b-NH3 (Adsorbed NH3 on site b)
+    y2: theta_a (free site a)
+    y3: theta_a-O (Adsorbed O on site a)
+    y4: theta_a-NO (Adsorbed NO on site a)
+    y5: theta_a-N (Adsorbed N on site a)
+    """
     plt.figure()
-    plt.semilogx(soln.t, soln.y[:,4])
+    plt.semilogx(soln.t, soln.y[:,1])
     plt.xlabel('time')
     plt.ylabel("surface coverage");
+    plt.title('NH3-b')
     plt.show()
     plt.close('all')
 
     plt.figure()
-    plt.semilogx(soln.t, soln.y[:,0] + soln.y[:,1], label='theta_b+theta_b-NH3')
+    plt.semilogx(soln.t, soln.y[:,3])
+    plt.xlabel('time')
+    plt.ylabel("surface coverage");
+    plt.title('O-a')
+    plt.show()
+    plt.close('all')
+
+    plt.figure()
+    plt.semilogx(soln.t, soln.y[:,4])
+    plt.xlabel('time')
+    plt.ylabel("surface coverage");
+    plt.title('NO-a')
+    plt.show()
+    plt.close('all')
+
+    plt.figure()
+    plt.semilogx(soln.t, soln.y[:,5])
+    plt.xlabel('time')
+    plt.ylabel("surface coverage");
+    plt.title('N-a')
+    plt.show()
+    plt.close('all')
+
+    plt.figure()
+    plt.semilogx(soln.t, soln.y[:,0] + soln.y[:,1])
+    plt.title('theta_b coverage balance')
     plt.show()
     plt.close()
 
     plt.figure()
-    plt.semilogx(soln.t, soln.y[:,2] + soln.y[:,3] + soln.y[:,4] + soln.y[:,5], label='theta_a balance')
+    plt.semilogx(soln.t, soln.y[:,2] + soln.y[:,3] + soln.y[:,4] + soln.y[:,5])
+    plt.title('theta_a balance')
     plt.show()
     plt.close()
 
 
 if __name__ == '__main__':
     # initial coverages. They must be consistent initial conditions for the coverages, i.e. satisfy the site balances.
-    y0 = np.array([1 , 0.0, 1.0, 0.4, 0.0, 0.0])
+    y0 = np.array([1 , 0, 1, 0, 0, 0])
 
     # Next is the derivatives. We don't pass consistent initial conditions for the derivatives. 
     # IDA computes them internally with the option calc_initcond='yp0'. 
@@ -324,13 +355,14 @@ if __name__ == '__main__':
     yp0 = np.zeros_like(y0) 
 
     # time to simulate
-    tspan = [0, 1E-1]
-    Ptot = 14 # kPa
-    params = KraehnertParameters(680+273.15, #K
+    tspan = [0, 1E2]
+    Ptot = 100 # kPa
+    params = KraehnertParameters(800+273.15, #K
                                  Ptot, #kPa
-                                 {'NH3':7/Ptot, 'O2':7/Ptot, 'NO':0})
+                                 {'NH3':0.1, 'O2':0.1, 'NO':0.001})
 
     constraints = np.zeros_like(y0, dtype=int)
+
 
     solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=params,
                         calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
@@ -340,4 +372,4 @@ if __name__ == '__main__':
     soln = solver.solve(tspan, y0, yp0)
 
     write_results(soln)
-    plot_results(soln)
+    #plot_results(soln)
