@@ -4,7 +4,7 @@ This is given by a set of elementary steps and one non elementary step (R5 is no
 This mechanism has the particularity of having two independent active sites a and b, each requiring a site balance.
 Requirements:
     numpy>=1.21.0
-    scikits.odes>=2.6.3 (compiled from source code)
+    sksundae>=1.1.0 (Sundials 7.5.0 compiled from source code)
     matplotlib>=3.5.0
 
 The variables are:
@@ -194,7 +194,7 @@ def residual_function(t, y, yp, res, userdata) -> None:
     res[4] = yp[4] - (-R[5] + R[6] + R[8] - R[9])/surface_density
     # dtheta-aN
     res[5] = yp[5] - (R[4] - 2*R[7] - R[8] - R[9])/surface_density
-    print(res)
+    #print(res)
 
 
 def write_results(soln)->None:
@@ -218,6 +218,104 @@ def write_results(soln)->None:
     print('rate of N2O', rates[5])
 
 
+def rate_constants(user_data: KraehnertParameters) -> np.ndarray:
+    """Compute rate constants k1 to k10 based on user data."""
+    R = user_data.R  # kJ/(mol*K)
+    T = user_data.T  # Temperature in Kelvin
+    T_ref = user_data.T_ref  # Reference temperature in Kelvin
+
+    E = np.zeros(10)  # kJ/mol
+    E[0] = 0
+    E[1] = 60.9 
+    E[2] = 0 
+    E[3] = 181 
+    E[4] = 99.5 
+    E[5] = 154.8  
+    E[6] = 63.5 
+    E[7] = 139 
+    E[8] = 135.4 
+    E[9] = 155.2 
+
+    k = np.zeros(10)
+    k[0] = 6.38E-1*np.exp(-(E[0]/R)*(1/T - 1/T_ref))
+    k[1] = 2.17E0*np.exp(-(E[1]/R)*(1/T - 1/T_ref))
+    k[2] = 2.94E-1*np.exp(-(E[2]/R)*(1/T - 1/T_ref))
+    k[3] = 1.09E-10*np.exp(-(E[3]/R)*(1/T - 1/T_ref))
+    k[4] = 5.91E2*np.exp(-(E[4]/R)*(1/T - 1/T_ref))
+    k[5] = 1.24E0*np.exp(-(E[5]/R)*(1/T - 1/T_ref))
+    k[6] = 2.63E-1*np.exp(-(E[6]/R)*(1/T - 1/T_ref))
+    k[7] = 6.42E1*np.exp(-(E[7]/R)*(1/T - 1/T_ref))
+    k[8] = 9.34E0*np.exp(-(E[8]/R)*(1/T - 1/T_ref))
+    k[9] = 5.2E0*np.exp(-(E[9]/R)*(1/T - 1/T_ref))
+
+    return k
+
+def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: float, JJ, userdata) -> int:
+    """
+    Analytic Jacobian J = d(res)/d(y) + cj * d(res)/d(yp).
+    JJ is expected to be a mutable 6x6 array-like (filled in-place).
+    Return 0 on success (Sundials style).
+    """
+    user_data: KraehnertParameters = userdata
+    S = user_data.surface_density
+    pNH3, pNO, pO2 = user_data.pNH3, user_data.pNO, user_data.pO2
+
+    k = rate_constants(user_data)
+
+    # zero the Jacobian container in-place (works if JJ is numpy array)
+    try:
+        JJ[:, :] = 0.0
+    except Exception:
+        # fallback: create local and copy back if JJ isn't writable
+        JJ_local = np.zeros((6, 6))
+    else:
+        JJ_local = JJ
+
+    # Helper aliases for readability (k indices follow code convention: k[0]=k1, ...)
+    k1, k2, k3, k4, k5, k6, k7, k8, k9, k10 = k
+
+    # Row 0: algebraic site balance b: y0 + y1 - 1
+    JJ_local[0, 0] = 1.0
+    JJ_local[0, 1] = 1.0
+
+    # Row 2: algebraic site balance a: y2 + y3 + y4 + y5 - 1
+    JJ_local[2, 2] = 1.0
+    JJ_local[2, 3] = 1.0
+    JJ_local[2, 4] = 1.0
+    JJ_local[2, 5] = 1.0
+
+    # Differential rows: J[row, j] = - d(f_row)/d(y_j)
+    # Row 1 (f1 = (R1 - R2 - R5)/S)
+    JJ_local[1, 0] = - (k1 * pNH3) / S
+    JJ_local[1, 1] = - ( -k2 - k5 * y[3]) / S  # = (k2 + k5*y3)/S
+    JJ_local[1, 3] = - ( -k5 * y[1]) / S      # = k5*y1/S
+
+    # Row 3 (f3 = (2R3 - 2R4 -1.5R5 - R9)/S)
+    JJ_local[3, 1] = - ( -1.5 * k5 * y[3]) / S   # = 1.5*k5*y3/S
+    JJ_local[3, 2] = - ( 4.0 * k3 * pO2 * y[2]) / S
+    JJ_local[3, 3] = - ( -4.0 * k4 * y[3] - 1.5 * k5 * y[1] - k9 * y[5]) / S
+    JJ_local[3, 5] = - ( -k9 * y[3]) / S          # = k9*y3/S
+
+    # Row 4 (f4 = (R6 - R7 + R9 - R10)/S)
+    JJ_local[4, 3] = - ( k9 * y[5]) / S * 1.0     # df4/dy3 = k9*y5 / S -> J = -df
+    JJ_local[4, 4] = - ( -k6 + k7 * pNO - k10 * y[5]) / S
+    JJ_local[4, 5] = - ( k9 * y[3] - k10 * y[4]) / S
+
+    # Row 5 (f5 = (R5 - 2R8 - R9 - R10)/S)
+    JJ_local[5, 1] = - ( k5 * y[3]) / S
+    JJ_local[5, 3] = - ( k5 * y[1] - k9 * y[5]) / S
+    JJ_local[5, 4] = - ( -k10 * y[5]) / S         # = k10*y5/S
+    JJ_local[5, 5] = - ( -4.0 * k8 * y[5] - k9 * y[3] - k10 * y[4]) / S
+
+    # Add cj * d(res)/d(yp): for rows 1,3,4,5 d(res)/d(yp) has +1 on their corresponding yp variable.
+    JJ_local[1, 1] += cj
+    JJ_local[3, 3] += cj
+    JJ_local[4, 4] += cj
+    JJ_local[5, 5] += cj
+
+    JJ[:, :] = JJ_local
+
+    return 0
 
 
 def plot_results(soln)->None:
@@ -252,16 +350,16 @@ if __name__ == '__main__':
 
     # time to simulate
     tspan = [0, 1E-1]
-
+    Ptot = 14 # kPa
     params = KraehnertParameters(680+273.15, #K
-                                 14, #kPa
-                                 {'NH3':7/14, 'O2':7/14, 'NO':0.0})
+                                 Ptot, #kPa
+                                 {'NH3':7/Ptot, 'O2':7/Ptot, 'NO':0})
 
     constraints = np.zeros_like(y0, dtype=int)
 
     solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=params,
                         calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
-                        constraints_type=[1,1,1,1])#, jacfn=jacobian_fn)
+                        constraints_type=[1,1,1,1], jacfn=jacobian_fn)
                         #, jacfn=jacobian_fn)
 
     soln = solver.solve(tspan, y0, yp0)
