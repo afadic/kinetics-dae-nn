@@ -123,41 +123,9 @@ def residual_function(t, y, yp, res, userdata) -> None:
     y5: Theta_a-N (Adsorbed N on site a)
     """
     user_data = userdata
-
-    R = user_data.R  # kJ/(mol*K)
     surface_density = user_data.surface_density 
-
-    T =  user_data.T # 385  # Temperature in Kelvin
-    T_ref = user_data.T_ref  # Reference temperature in Kelvin
     
-    E = np.zeros(10) # kJ/mol
-    E[0] = 0
-    E[1] = 60.9 
-    E[2] = 0 
-    E[3] = 181 
-    E[4] = 99.5 
-    E[5] = 154.8  
-    E[6] = 63.5 
-    E[7] = 139 
-    E[8] = 135.4 
-    E[9] = 155.2 
-
-    # ki in mol m−2 s−1 kPa−1 for reactions involving partial pressures
-    k = np.zeros(10)
-    # Use absolute 0 as reference
-    k[0] = 6.38E-1*np.exp(E[0]/(R*T_ref))
-    k[1] = 2.17E0*np.exp(E[1]/(R*T_ref))
-    k[2] = 2.94E-1*np.exp(E[2]/(R*T_ref))
-    k[3] = 1.09E-10*np.exp(E[3]/(R*T_ref))
-    k[4] = 5.91E2*np.exp(E[4]/(R*T_ref))
-    k[5] = 1.24E0*np.exp(E[5]/(R*T_ref))
-    k[6] = 2.63E-1*np.exp(E[6]/(R*T_ref))
-    k[7] = 6.42E1*np.exp(E[7]/(R*T_ref))
-    k[8] = 9.34E0*np.exp(E[8]/(R*T_ref))
-    k[9] = 5.2E0*np.exp(E[9]/(R*T_ref))
-    
-    for i in range(len(k)):
-        k[i] = k[i] * np.exp(-(E[i]/R)*(1/T))
+    k = rate_constants(user_data)
                    
     pNH3 = user_data.pNH3
     pNO = user_data.pNO
