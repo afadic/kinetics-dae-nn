@@ -46,7 +46,8 @@ class KraehnertParameters:
         self.pNO = mole_fractions['NO'] * P
         self.pO2 = mole_fractions['O2'] * P
         self.R = 8.314/1000  # kJ/(mol*K)
-        self.surface_density = 2.72E-5  # mol/m^2
+        self.surface_density = 2.72E-1  # mol/m^2
+        self.relaxation_factor = 1e4
         self.T_ref = 385 + 273.15  # Reference temperature (K)
 
 def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
@@ -95,7 +96,7 @@ def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
     R_O2 = -R3 + R4 
     R_H2O = 1.5*R5
     R_N2O = R10
-    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])*data.surface_density
+    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])*data.surface_density/data.relaxation_factor
 
 
 def residual_function(t, y, yp, res, userdata) -> None:
@@ -256,28 +257,27 @@ def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: fl
     JJ_local[2, 5] = 1.0
 
     # Differential rows: J[row, j] = - d(f_row)/d(y_j)
-    # Row 1 (f1 = (R1 - R2 - R5)/S)
+    # Row 1 (f1 = (R1 - R2 - R5))
     JJ_local[1, 0] = - (k1 * pNH3) 
-    JJ_local[1, 1] = - ( -k2 - k5 * y[3])   # = (k2 + k5*y3)/S
-    JJ_local[1, 3] = - ( -k5 * y[1])       # = k5*y1/S
+    JJ_local[1, 1] = - ( -k2 - k5 * y[3])   
+    JJ_local[1, 3] = - ( -k5 * y[1])       
 
-    # Row 3 (f3 = (2R3 - 2R4 -1.5R5 - R9)/S)
-    JJ_local[3, 1] = - ( -1.5 * k5 * y[3])    # = 1.5*k5*y3/S
+    # Row 3 (f3 = (2R3 - 2R4 -1.5R5 - R9))
+    JJ_local[3, 1] = - ( -1.5 * k5 * y[3])    
     JJ_local[3, 2] = - ( 4.0 * k3 * pO2 * y[2]) 
     JJ_local[3, 3] = - ( -4.0 * k4 * y[3] - 1.5 * k5 * y[1] - k9 * y[5]) 
-    JJ_local[3, 5] = - ( -k9 * y[3])           # = k9*y3/S
+    JJ_local[3, 5] = - ( -k9 * y[3])           
 
-    # Row 4 (f4 = (R6 - R7 + R9 - R10)/S)
+    # Row 4 (f4 = (R6 - R7 + R9 - R10))
     JJ_local[4, 2] = - ( k7 * pNO )   
-    JJ_local[4, 3] = - ( k9 * y[5])     # df4/dy3 = k9*y5 / S -> J = -df
+    JJ_local[4, 3] = - ( k9 * y[4])     
     JJ_local[4, 4] = - ( -k6 - k10 * y[5])   
-    #JJ_local[4, 4] = - ( -k6 + k7 * pNO - k10 * y[5]) 
-    JJ_local[4, 5] = - ( k9 * y[3] - k10 * y[4])  
+    JJ_local[4, 5] = - ( k9*y[3] + k10 * y[4] )
 
-    # Row 5 (f5 = (R5 - 2R8 - R9 - R10)/S)
+    # Row 5 (f5 = (R5 - 2R8 - R9 - R10))
     JJ_local[5, 1] = - ( k5 * y[3]) 
     JJ_local[5, 3] = - ( k5 * y[1] - k9 * y[5]) 
-    JJ_local[5, 4] = - ( -k10 * y[5])          # = k10*y5/S
+    JJ_local[5, 4] = - ( -k10 * y[5])          
     JJ_local[5, 5] = - ( -4.0 * k8 * y[5] - k9 * y[3] - k10 * y[4]) 
 
     # Add cj * d(res)/d(yp): for rows 1,3,4,5 d(res)/d(yp) has +1 on their corresponding yp variable.
@@ -345,7 +345,7 @@ def plot_results(soln)->None:
 
 if __name__ == '__main__':
     # initial coverages. They must be consistent initial conditions for the coverages, i.e. satisfy the site balances.
-    y0 = np.array([1 , 0, 1, 0, 0, 0])
+    y0 = np.array([1 , 0, 1, 0, 0.0, 0])
 
     # Next is the derivatives. We don't pass consistent initial conditions for the derivatives. 
     # IDA computes them internally with the option calc_initcond='yp0'. 
@@ -357,19 +357,18 @@ if __name__ == '__main__':
     # time to simulate
     tspan = [0, 1E2]
     Ptot = 100 # kPa
-    params = KraehnertParameters(800+273.15, #K
+    params = KraehnertParameters(385+273.15, #K
                                  Ptot, #kPa
-                                 {'NH3':0.1, 'O2':0.1, 'NO':0.001})
+                                 {'NH3':0.6, 'O2':0.6, 'NO':0})
 
     constraints = np.zeros_like(y0, dtype=int)
 
-
-    solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=params,
+    solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-3, userdata=params,
                         calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
-                        constraints_type=[1,1,1,1], jacfn=jacobian_fn)
+                        constraints_type=[1,1,1,1] , jacfn=jacobian_fn)
                         #, jacfn=jacobian_fn)
 
     soln = solver.solve(tspan, y0, yp0)
 
     write_results(soln)
-    #plot_results(soln)
+    plot_results(soln)
