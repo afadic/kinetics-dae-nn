@@ -46,8 +46,8 @@ class KraehnertParameters:
         self.pNO = mole_fractions['NO'] * P
         self.pO2 = mole_fractions['O2'] * P
         self.R = 8.314/1000  # kJ/(mol*K)
-        self.surface_density = 2.72E-1  # mol/m^2
-        self.relaxation_factor = 1e4
+        self.surface_density = 2.72E-3  # mol/m^2
+        self.relaxation_factor = 1e1
         self.T_ref = 385 + 273.15  # Reference temperature (K)
 
 def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
@@ -356,10 +356,10 @@ if __name__ == '__main__':
 
     # time to simulate
     tspan = [0, 1E2]
-    Ptot = 100 # kPa
-    params = KraehnertParameters(385+273.15, #K
+    Ptot = 500 # kPa
+    params = KraehnertParameters(1229.6, #1000+273.15, #K
                                  Ptot, #kPa
-                                 {'NH3':0.6, 'O2':0.6, 'NO':0})
+                                 {'NH3':2.06e-3, 'O2':4.17e-2, 'NO':9.92e-2})
 
     constraints = np.zeros_like(y0, dtype=int)
 
