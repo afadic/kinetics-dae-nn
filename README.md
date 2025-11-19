@@ -1,7 +1,7 @@
 # kinetics-dae-nn
 I am revisiting my PhD work on surrogate modeling with Neural Networks. I graduated in 2018. and some of this work has been presented at conferences:
-*A. Fadic Acceleration of detailed chemistry with neural networks: Canadian chemical engineering conference, Edmonton, October 22-25, 2017
-*A. Fadic Detailed chemistry acceleration implemented into commercial CFD code. Modegat III, Bad Herrenalb, Germany, Sept 2017
+- A. Fadic Acceleration of detailed chemistry with neural networks: Canadian chemical engineering conference, Edmonton, October 22-25, 2017
+- A. Fadic Detailed chemistry acceleration implemented into commercial CFD code. Modegat III, Bad Herrenalb, Germany, Sept 2017
 
 The base case scenario is the Krahnert mechanism used for ammonia oxidation. These days this qualifies as a Physics Informed Neural Network.
 
