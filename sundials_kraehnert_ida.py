@@ -46,8 +46,8 @@ class KraehnertParameters:
         self.pNO = mole_fractions['NO'] * P
         self.pO2 = mole_fractions['O2'] * P
         self.R = 8.314/1000  # kJ/(mol*K)
-        self.surface_density = 2.72E-3  # mol/m^2
-        self.relaxation_factor = 1e1
+        self.surface_density = 2.72E-5  # mol/m^2
+        self.relaxation_factor = 1e2 # makes the problem less stiff by changing the dynamics (especially the dynamics of NO). It is added back for rate calculation.
         self.T_ref = 385 + 273.15  # Reference temperature (K)
 
 def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
@@ -85,7 +85,7 @@ def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
     R4 = k4*y[3]**2
     R5 = k5*y[1]*y[3]
     R6 = k6*y[4]
-    R7 = k7*pNO*y[4]
+    R7 = k7*pNO*y[2]
     R8 = k8*y[5]**2
     R9 = k9*y[5]*y[3]
     R10 = k10*y[4]*y[5]
@@ -96,7 +96,7 @@ def compute_rates(data:KraehnertParameters, y:np.ndarray)->np.ndarray:
     R_O2 = -R3 + R4 
     R_H2O = 1.5*R5
     R_N2O = R10
-    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])*data.surface_density/data.relaxation_factor
+    return np.array([R_NH3, R_N2, R_NO, R_O2, R_H2O, R_N2O])*data.surface_density*data.relaxation_factor
 
 
 def residual_function(t, y, yp, res, userdata) -> None:
@@ -163,7 +163,6 @@ def residual_function(t, y, yp, res, userdata) -> None:
     res[4] = yp[4] - (-R6 + R7 + R9 - R10)
     # dtheta-aN
     res[5] = yp[5] - (R5 - 2*R8 - R9 - R10)
-    print(res)
 
 
 def write_results(soln)->None:
@@ -181,10 +180,11 @@ def write_results(soln)->None:
 
     print('selectivity N2O/NH3 %:', -2*rates[5]/rates[0]*100)
     
-    print('rate of NH3', rates[0])
-    print('rate of N2', rates[1])
-    print('rate of NO', rates[2])
-    print('rate of N2O', rates[5])
+    print('reaction rates mol/m2/s')
+    print('NH3', rates[0])
+    print('N2 ', rates[1])
+    print('NO ', rates[2])
+    print('N2O', rates[5])
 
 
 def rate_constants(user_data: KraehnertParameters) -> np.ndarray:
@@ -220,7 +220,7 @@ def rate_constants(user_data: KraehnertParameters) -> np.ndarray:
     # for numerical stability, we divide each k by the surface density. This implies that we need to adapt the residual
     # function removing the surface density, and it also implies that we need to multiply it back at the time to compute the rates.
 
-    return k/user_data.surface_density
+    return k/user_data.surface_density/user_data.relaxation_factor
 
 def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: float, JJ, userdata) -> int:
     """
@@ -360,15 +360,14 @@ if __name__ == '__main__':
     params = KraehnertParameters(1229.6, #1000+273.15, #K
                                  Ptot, #kPa
                                  {'NH3':2.06e-3, 'O2':4.17e-2, 'NO':9.92e-2})
-
+    
     constraints = np.zeros_like(y0, dtype=int)
 
-    solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-3, userdata=params,
+    solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=params,
                         calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
                         constraints_type=[1,1,1,1] , jacfn=jacobian_fn)
-                        #, jacfn=jacobian_fn)
 
     soln = solver.solve(tspan, y0, yp0)
 
     write_results(soln)
-    plot_results(soln)
+    #plot_results(soln)
