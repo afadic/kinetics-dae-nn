@@ -47,19 +47,20 @@ class Krahnert:
         self.pO2 = mole_fractions['O2'] * P
         self.R = 8.314/1000  # kJ/(mol*K)
         self.surface_density = 2.72E-5  # mol/m^2
-        self.relaxation_factor = 1e2 # makes the problem less stiff by changing the dynamics (especially the dynamics of NO). It is added back for rate calculation.
+        self.relaxation_factor = 1e2 # makes the problem less stiff by changing the dynamics (especially important for the dynamics of NO). It is added back for rate calculation.
         self.T_ref = 385 + 273.15  # Reference temperature (K)
 
-    def solve(self, plot_results=False, use_jacobian=True):
+    def solve(self, plot_results=False, use_jacobian=True, full_solution=False, relaxation=1e2):
         # initial coverages. They must be consistent initial conditions for the coverages, i.e. satisfy the site balances.
-        y0 = np.array([1 , 0, 1, 0, 0.0, 0])
+        y0 = np.array([1.0 , 0.0, 1.0, 0.0, 0.0, 0.0])
 
         # Next is the derivatives. We don't pass consistent initial conditions for the derivatives. 
         # IDA computes them internally with the option calc_initcond='yp0'. 
         # In general, finding consistent initial conditions for DAE systems is not trivial.
-        # The results have been validated against Fig 11 from the paper.
+        # The results have been validated against Fig 11 from Krahnert's paper.
 
         yp0 = np.zeros_like(y0) 
+        self.relaxation_factor = relaxation
 
         # time to simulate
         tspan = [0, 1E2]
@@ -74,12 +75,16 @@ class Krahnert:
                             constraints_type=[1,1,1,1])
 
         soln = solver.solve(tspan, y0, yp0)
+        if full_solution:
+            # this is only needed for the adsoption dynamics
+            soln.t = soln.t/self.relaxation_factor
+            return soln
+        
         res = self.write_results(soln)
         if plot_results:
             self.plot_results(soln)
         return res
         
-
     
     def write_results(self, soln, show=False)->None:
         theta_b_NH3 = soln.y[-1,1]
@@ -101,7 +106,7 @@ class Krahnert:
             print('N2 ', rates[1])
             print('NO ', rates[2])
             print('N2O', rates[5])
-        return {'NH3': rates[0], 'N2': rates[1], 'NO':rates[2], 'N2O':rates[5]}
+        return {'rNH3': rates[0], 'rN2': rates[1], 'rNO':rates[2], 'rN2O':rates[5]}
 
 
     def plot_results(self, soln)->None:
@@ -273,9 +278,6 @@ def residual_function(t, y, yp, res, userdata) -> None:
     res[5] = yp[5] - (R5 - 2*R8 - R9 - R10)
 
 
-
-
-
 def rate_constants(user_data: Krahnert) -> np.ndarray:
     """Compute rate constants k1 to k10 based on user data."""
     R = user_data.R  # kJ/(mol*K)
@@ -379,12 +381,10 @@ def jacobian_fn(t: float, y: np.ndarray, yp: np.ndarray, res: np.ndarray, cj: fl
 
 
 if __name__ == '__main__':
-    from time import time
+
     kra = Krahnert(1229.6, #K
                     500, #kPa
                     {'NH3':2.06e-3, 'O2':4.17e-2, 'NO':9.92e-2})
-    start_time = time()
-    for _ in range(1000):
-        res = kra.solve(plot_results=False, use_jacobian=True)
-    end_time = time()
-    print(f'execution time: {end_time-start_time:6.5f} s/1000 it')
+       
+    res = kra.solve(plot_results=False, use_jacobian=True, relaxation=1e5, full_solution=True)
+    print(res)
