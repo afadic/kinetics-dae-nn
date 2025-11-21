@@ -25,7 +25,7 @@ def solve_single(params_row):
     Takes dict of parameters, returns combined dict with rates
     Handles both dict and numpy array outputs
     """
-    kra = Krahnert(T=params_row[0], P=500e3, mole_fractions={'NH3':params_row[1],
+    kra = Krahnert(T=params_row[0], P=500, mole_fractions={'NH3':params_row[1],
                                                             'O2': params_row[2],
                                                             'NO': params_row[3]})
                 
