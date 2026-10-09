@@ -66,11 +66,11 @@ class Krahnert:
         tspan = [0, 1E2]
 
         if use_jacobian:
-            solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=self,
+            solver = sun.ida.IDA(residual_function, atol=1e-6, algebraic_idx=[0,2], rtol=1e-4, userdata=self,
                             calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
                             constraints_type=[1,1,1,1] , jacfn=jacobian_fn)
         else:
-            solver = sun.ida.IDA(residual_function, atol=1e-8, algebraic_idx=[0,2], rtol=1e-4, userdata=self,
+            solver = sun.ida.IDA(residual_function, atol=1e-6, algebraic_idx=[0,2], rtol=1e-4, userdata=self,
                             calc_initcond= 'yp0', max_order=2, constraints_idx=[1,3,4,5], 
                             constraints_type=[1,1,1,1])
 

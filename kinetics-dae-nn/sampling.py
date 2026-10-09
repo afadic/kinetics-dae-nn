@@ -8,16 +8,15 @@ from tqdm import tqdm
 np.random.seed(1)
 
 """
-Parallelized latin hypercube sampling of the Krahnert mechanism over a defined parametric space.
-Why hypercube sampling? Because random sampling in many dimensions tends to cluster, so it doesn't scan the parametric 
+Parallelized latin hypercube sampling (LHS) of the Krahnert mechanism over a defined parametric space.
+Why LHS? Because random sampling in many dimensions tends to cluster, so it doesn't scan the parametric
 space effectively unless you increase the amount of data, which is not efficient.
-This work has no scaling in the parameters.
-Typical scaling are T -> 1/T and x_i -> ln(x_i) which are physically motivated
-Especially relevant is the scaling of the outputs scaled as ln(r_i) performs best, which will be shown later
+This work has no scaling in the parameters. Scaling is done at training time, this is to scan the parametric space equally
+instead of oversample/undersample specific regiongs due to sampling.
 
-Explores the 4 dimensional parametric space at fix pressure of 500kPa. 
-Code is pallelized to the maximum number of available processors
-Typical performance is about 14 ms/it on 6 processors
+This code explores the 4 dimensional parametric space at fix pressure of 500kPa.
+Code is pallelized to 6 CPU cores.
+Typical performance is about 5 ms/it on 6 processors
 """
 
 def solve_single(params_row):
@@ -78,4 +77,3 @@ if __name__ == '__main__':
     df_rates['xNO'] = scaled_samples[:,3]
 
     df_rates.to_csv('rates.csv', index=False)
-
