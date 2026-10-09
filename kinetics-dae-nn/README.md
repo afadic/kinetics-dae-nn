@@ -182,6 +182,10 @@ g_i = \mathbf c^\mathsf T \hat{\mathbf y}_i
 + \hat r_{\mathrm{NO},i} + 2\hat r_{\mathrm{N_2O},i}.
 ```
 
+The symbol $\odot$ denotes element-wise multiplication. For example, with
+$\mathbf c=(1,2,1,2)$ and
+$\mathbf s=(s_{\mathrm{NH_3}},s_{\mathrm{N_2}},s_{\mathrm{NO}},s_{\mathrm{N_2O}})$,
+$\mathbf c\odot\mathbf s=(s_{\mathrm{NH_3}},2s_{\mathrm{N_2}},s_{\mathrm{NO}},2s_{\mathrm{N_2O}})$.
 The notebook scales this residual by
 
 ```math
@@ -189,7 +193,7 @@ s_{\mathrm{bal}} =
 \left\|\mathbf c \odot \mathbf s\right\|_2,
 ```
 
-where $\mathbf s=(s_1,\ldots,s_4)$, and minimizes
+where $\|\cdot\|_2$ is the Euclidean norm, and minimizes
 
 ```math
 \mathcal L_{\mathrm{soft}}
