@@ -42,12 +42,12 @@ oxidation on platinum foil:
 The mechanistic model has two surface-site families, `a` and `b`, with
 coverages for vacant and adsorbed species. Their algebraic site balances are
 
-\[
+$$
 \theta_b + \theta_{b-\mathrm{NH_3}} = 1,
 \qquad
 \theta_a + \theta_{a-\mathrm O} + \theta_{a-\mathrm{NO}} +
 \theta_{a-\mathrm N} = 1.
-\]
+$$
 
 The DAE solver finds steady-state coverages for the supplied temperature and
 partial pressures. Ten elementary/non-elementary surface steps are then used
@@ -56,9 +56,9 @@ conditions to these **simulated steady-state rates**; it does not learn the
 surface coverages or solve the DAE directly.
 
 For the four rates predicted by the notebook, the three global product
-pathways can be written in terms of forward extents \(\xi_1,\xi_2,\xi_3\):
+pathways can be written in terms of forward extents $\xi_1,\xi_2,\xi_3$:
 
-\[
+$$
 \begin{aligned}
 4\mathrm{NH_3} + 5\mathrm{O_2} &\longrightarrow
     4\mathrm{NO} + 6\mathrm{H_2O},\\
@@ -67,30 +67,30 @@ pathways can be written in terms of forward extents \(\xi_1,\xi_2,\xi_3\):
 4\mathrm{NH_3} + 4\mathrm{O_2} &\longrightarrow
     2\mathrm{N_2O} + 6\mathrm{H_2O}.
 \end{aligned}
-\]
+$$
 
 With the sign convention that ammonia consumption is negative and product
 formation is positive,
 
-\[
+$$
 r_{\mathrm{NH_3}}=-4(\xi_1+\xi_2+\xi_3),\quad
 r_{\mathrm{NO}}=4\xi_1,\quad
 r_{\mathrm{N_2}}=2\xi_2,\quad
 r_{\mathrm{N_2O}}=2\xi_3.
-\]
+$$
 
 Eliminating the extents gives the nitrogen-atom balance among the four
 predicted rates:
 
-\[
+$$
 \boxed{
 r_{\mathrm{NH_3}} + r_{\mathrm{NO}} +
 2r_{\mathrm{N_2}} + 2r_{\mathrm{N_2O}} = 0.
 }
-\]
+$$
 
 The coefficient vector in the code is
-\(\mathbf c=(1,2,1,2)^\mathsf T\), in the output order
+$\mathbf c=(1,2,1,2)^\mathsf T$, in the output order
 `[rNH3, rN2, rNO, rN2O]`. This is a nitrogen balance for the tracked rates. It
 is not a full elemental balance over all species: the network does not predict
 oxygen, water, or the surface species.
@@ -111,7 +111,7 @@ pressure of 500 kPa. The four independently sampled input quantities span:
 The input fractions are sampled independently over those bounds, as in the
 mechanism driver; they are not renormalized to sum to one. `rates.csv` contains
 these input columns and four outputs: `rNH3`, `rN2`, `rNO`, and `rN2O`. The
-rate calculations in `Krahnert.py` use mol m\(^{-2}\) s\(^{-1}\).
+rate calculations in `Krahnert.py` use $\mathrm{mol\,m^{-2}\,s^{-1}}$.
 
 The generated CSV is intentionally excluded from Git via `.gitignore`, so it
 must be generated locally before running the notebook if it is not already
@@ -144,7 +144,7 @@ is optional; the notebook selects CUDA when available and otherwise uses CPU.
 The main notebook predicts all four rates together with one shared
 feed-forward network. Its transformed input vector is
 
-\[
+$$
 \mathbf x =
 \left[
   \frac{1}{T},
@@ -152,22 +152,22 @@ feed-forward network. Its transformed input vector is
   \ln(x_{\mathrm{O_2}}),
   \ln(x_{\mathrm{NO}})
 \right].
-\]
+$$
 
 Each feature is standardized using the training rows' mean and standard
 deviation. The target rates keep their signed, original units; they are not
 log-transformed. Training-set rate standard deviations are used to put the
 multi-output loss terms on comparable scales.
 
-For target \(j\), let \(s_j\) be its training-set standard deviation, and let
-\(y_{ij}\) and \(\hat y_{ij}\) be the true and predicted rate for sample \(i\).
+For target $j$, let $s_j$ be its training-set standard deviation, and let
+$y_{ij}$ and $\hat y_{ij}$ be the true and predicted rate for sample $i$.
 The normalized data loss is
 
-\[
+$$
 \mathcal L_{\mathrm{data}}
 = \frac{1}{4N}\sum_{i=1}^N\sum_{j=1}^4
 \left(\frac{\hat y_{ij}-y_{ij}}{s_j}\right)^2.
-\]
+$$
 
 Two different approaches to the nitrogen-balance condition were compared.
 They are alternatives, not two names for the same technique.
@@ -176,55 +176,55 @@ They are alternatives, not two names for the same technique.
 
 For each predicted sample, define the balance residual
 
-\[
+$$
 g_i = \mathbf c^\mathsf T \hat{\mathbf y}_i
 = \hat r_{\mathrm{NH_3},i} + 2\hat r_{\mathrm{N_2},i}
 + \hat r_{\mathrm{NO},i} + 2\hat r_{\mathrm{N_2O},i}.
-\]
+$$
 
 The notebook scales this residual by
 
-\[
+$$
 s_{\mathrm{bal}} =
 \left\|\mathbf c \odot \mathbf s\right\|_2,
-\]
+$$
 
-where \(\mathbf s=(s_1,\ldots,s_4)\), and minimizes
+where $\mathbf s=(s_1,\ldots,s_4)$, and minimizes
 
-\[
+$$
 \mathcal L_{\mathrm{soft}}
 = \mathcal L_{\mathrm{data}}
 + \lambda \frac{1}{N}\sum_{i=1}^N
 \left(\frac{g_i}{s_{\mathrm{bal}}}\right)^2.
-\]
+$$
 
-The hyperparameter \(\lambda\) controls a trade-off. A larger penalty
+The hyperparameter $\lambda$ controls a trade-off. A larger penalty
 encourages smaller balance residuals, but does **not** guarantee zero residual
 and can reduce the accuracy of individual rates. The notebook explored
-different penalty strengths, including \(\lambda=10\).
+different penalty strengths, including $\lambda=10$.
 
 ### 2. Exact output projection
 
 The exact-balance models first produce an unconstrained output
-\(\mathbf f(\mathbf x)\), then project it onto the hyperplane
-\(\mathbf c^\mathsf T\mathbf y=0\). With \(q_j=s_j^2\), the projection is
+$\mathbf f(\mathbf x)$, then project it onto the hyperplane
+$\mathbf c^\mathsf T\mathbf y=0$. With $q_j=s_j^2$, the projection is
 
-\[
+$$
 \hat{\mathbf y}
 = \mathbf f
 - \frac{\mathbf c^\mathsf T\mathbf f}
 {\sum_j c_j^2 q_j}\,(\mathbf q\odot\mathbf c).
-\]
+$$
 
 Indeed,
 
-\[
+$$
 \mathbf c^\mathsf T\hat{\mathbf y}
 = \mathbf c^\mathsf T\mathbf f
 - \frac{\mathbf c^\mathsf T\mathbf f}
 {\sum_j c_j^2q_j}\sum_j c_j^2q_j
 =0.
-\]
+$$
 
 This is the smallest correction to the raw output in the
 training-standard-deviation-weighted metric: it distributes the correction
@@ -253,7 +253,7 @@ interpolation over the sampled domain, not temperature extrapolation.
 
 The most recent architecture search selected a four-hidden-layer,
 192-units-per-layer GELU network with exact balance projection and learning
-rate \(3\times10^{-4}\) (112,900 trainable parameters). That model was then
+rate $3\times10^{-4}$ (112,900 trainable parameters). That model was then
 used in the dedicated high-temperature experiment.
 
 ### High-temperature extrapolation experiment
@@ -261,16 +261,16 @@ used in the dedicated high-temperature experiment.
 The extrapolation cell sets its cutoff at two-thirds of the observed
 temperature interval:
 
-\[
+$$
 T_{\mathrm{cut}} = T_{\min}+\frac{2}{3}(T_{\max}-T_{\min})
-\approx 1166.7\ \mathrm K.
-\]
+\approx 1166.7\ \mathrm{K}.
+$$
 
 It randomly divides rows at or below the cutoff into training (about 56,666
 rows) and in-range validation (10,000 rows). The upper third (33,334 rows,
 approximately 1166.7–1500 K) is excluded from that cell's fitting of weights,
 feature scaling, projection scales, and early-stopping/model-checkpoint
-selection. The model achieves upper-range \(R^2\) values around 0.9994–0.9999
+selection. The model achieves upper-range $R^2$ values around 0.9994–0.9999
 for the four rates in the saved run; the per-rate RMSE and absolute-error
 results are printed by the notebook.
 
@@ -289,7 +289,7 @@ structure above that range. Keep the caveats in view:
 3. Composition remains inside the sampled input domain. The experiment holds
    out a temperature region; it does not test extrapolation to unseen mixture
    compositions.
-4. \(R^2\) alone can look excellent when the rate varies over a wide range.
+4. $R^2$ alone can look excellent when the rate varies over a wide range.
    Inspect the reported RMSE, MAE, signed error extrema, and scatter plots as
    well.
 
