@@ -3,7 +3,7 @@ I am revisiting my PhD work on surrogate modeling with Neural Networks. Some of 
 - A. Fadic Acceleration of detailed chemistry with neural networks: Canadian chemical engineering conference, Edmonton, October 22-25, 2017
 - A. Fadic Detailed chemistry acceleration implemented into commercial CFD code. Modegat III, Bad Herrenalb, Germany, Sept 2017
 
-The base case scenario is the Krahnert mechanism used for ammonia oxidation. These days this qualifies as a Physics Informed Neural Network.
+The base case scenario is the Krahnert mechanism used for ammonia oxidation. These days this qualifies as a Physics Informed Neural Network (PINN) in particular when mass conservation is enforced through the cost function or as a constraint.
 
 One of the main objectives is to study the potential performance improvements and accuracy of surrogate models.
 
