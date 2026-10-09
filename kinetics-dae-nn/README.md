@@ -176,27 +176,27 @@ They are alternatives, not two names for the same technique.
 
 For each predicted sample, define the balance residual
 
-$$
+```math
 g_i = \mathbf c^\mathsf T \hat{\mathbf y}_i
 = \hat r_{\mathrm{NH_3},i} + 2\hat r_{\mathrm{N_2},i}
 + \hat r_{\mathrm{NO},i} + 2\hat r_{\mathrm{N_2O},i}.
-$$
+```
 
 The notebook scales this residual by
 
-$$
+```math
 s_{\mathrm{bal}} =
 \left\|\mathbf c \odot \mathbf s\right\|_2,
-$$
+```
 
 where $\mathbf s=(s_1,\ldots,s_4)$, and minimizes
 
-$$
+```math
 \mathcal L_{\mathrm{soft}}
 = \mathcal L_{\mathrm{data}}
 + \lambda \frac{1}{N}\sum_{i=1}^N
 \left(\frac{g_i}{s_{\mathrm{bal}}}\right)^2.
-$$
+```
 
 The hyperparameter $\lambda$ controls a trade-off. A larger penalty
 encourages smaller balance residuals, but does **not** guarantee zero residual
@@ -209,22 +209,22 @@ The exact-balance models first produce an unconstrained output
 $\mathbf f(\mathbf x)$, then project it onto the hyperplane
 $\mathbf c^\mathsf T\mathbf y=0$. With $q_j=s_j^2$, the projection is
 
-$$
+```math
 \hat{\mathbf y}
 = \mathbf f
 - \frac{\mathbf c^\mathsf T\mathbf f}
 {\sum_j c_j^2 q_j}\,(\mathbf q\odot\mathbf c).
-$$
+```
 
 Indeed,
 
-$$
+```math
 \mathbf c^\mathsf T\hat{\mathbf y}
 = \mathbf c^\mathsf T\mathbf f
 - \frac{\mathbf c^\mathsf T\mathbf f}
 {\sum_j c_j^2q_j}\sum_j c_j^2q_j
 =0.
-$$
+```
 
 This is the smallest correction to the raw output in the
 training-standard-deviation-weighted metric: it distributes the correction
